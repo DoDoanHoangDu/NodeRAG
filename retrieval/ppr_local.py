@@ -1,4 +1,4 @@
-def shallow_ppr_local(nodes_dict, entry_ids, alpha = 0.5, t = 2, k = 10):
+def shallow_ppr_local(nodes_dict, entry_ids, alpha = 0.5, t = 2, k = None):
     #simulate a random walk with restarts, number of steps t, probability to stop at each node after stepping is alpha
     pi = dict()   # PPR scores: probability that the walk ends at each node
     r = {entry_id: 1.0 for entry_id in entry_ids}  # probability that the next step move to the node. at step 0, probability is 1 to move to entry node
@@ -18,5 +18,11 @@ def shallow_ppr_local(nodes_dict, entry_ids, alpha = 0.5, t = 2, k = 10):
     #add remaining residual probabilities to PPR scores
     for node_id, residual in r.items():
         pi[node_id] = pi.get(node_id, 0) + residual
+    for node_id in entry_ids:
+        pi[node_id] = -1.0  #exclude entry nodes
+    #get top k nodes by PPR scores
+    if not k:
+        k = len(entry_ids)
     top_nodes = sorted(pi.items(), key=lambda x: x[1], reverse=True)[:k]
+    print(f"PPR selected nodes: {len(top_nodes)}")
     return dict(top_nodes)

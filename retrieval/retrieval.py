@@ -62,10 +62,7 @@ def retrieve_relevant_nodes(query_embedding, query_entities,k_embedding,k_ppr, a
     entry_node_ids = set(embedding_node_ids).union(entity_node_ids)
 
     #perform PPR from entry nodes to find cross nodes
-    if k_ppr:
-        ppr_search_results = shallow_ppr_local(medical_g5, entry_node_ids, alpha=alpha, t=t, k=k_ppr)
-    else:
-        ppr_search_results = shallow_ppr_local(medical_g5, entry_node_ids, alpha=alpha, t=t, k=len(entry_node_ids)*5)
+    ppr_search_results = shallow_ppr_local(medical_g5, entry_node_ids, alpha=alpha, t=t, k=k_ppr)
     cross_node_ids = set(ppr_search_results.keys())
 
     #combine all relevant nodes

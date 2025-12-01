@@ -4,6 +4,7 @@ from google import genai
 import os
 import json
 import numpy as np
+import time
 
 #set file paths
 dir_path = os.path.dirname(os.path.abspath(__file__))
@@ -24,9 +25,12 @@ def call_gemini(text):
 
 def get_context(query, embedding_model, k_embedding, k_ppr, alpha,t):
     #Decompose question to extract entities
+    start = time.time()
     prompt = question_decompose_prompt(query)
     response_text = call_gemini(prompt)
     print("Decomposed Question Response:", response_text)
+    finish_decomposition_time = time.time()
+    print(f"Decomposition time: {finish_decomposition_time - start:.2f} seconds.")
     query_entities = json.loads(response_text)
     
     #Get query embedding
@@ -34,5 +38,6 @@ def get_context(query, embedding_model, k_embedding, k_ppr, alpha,t):
 
     #Retrieve relevant nodes
     context = retrieve_relevant_nodes(query_embedding, query_entities, k_embedding, k_ppr, alpha, t)
+    print(f"Retrieval time: {time.time() - finish_decomposition_time:.2f} seconds.")
     return context
 
