@@ -9,10 +9,8 @@ from retrieval.ppr_local import shallow_ppr_local
 
 
 #set file paths
-import sys
 dir_path = os.path.dirname(os.path.abspath(__file__))
 root_path = os.path.dirname(dir_path)
-#sys.path.append(root_path)
 
 
 #Load Data
@@ -53,7 +51,6 @@ def find_relevant_entities(query_entities):
     return entity_ids
 
 def retrieve_relevant_nodes(query_embedding, query_entities,k_embedding,k_ppr, alpha, t):
-    entry_points = set()
     #find relevant embeddings
     sim, idx = find_relevant_embeddings(query_embedding, k_embedding)
     embedding_node_ids = [medical_embedding_ids[i] for i in idx]
@@ -81,7 +78,3 @@ def retrieve_relevant_nodes(query_embedding, query_entities,k_embedding,k_ppr, a
             continue
         content[node_id] = node.content
     return content
-
-a = Node(node_type='N', content='Test Node A')
-a.print()
-print(shallow_ppr_local({1:a}, [1], alpha=0.5, t=2, k=10))
