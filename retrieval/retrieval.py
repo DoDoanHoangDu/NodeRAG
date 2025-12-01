@@ -1,31 +1,87 @@
 import os
-
-def shallow_ppr_local(nodes_dict, entry_id, alpha = 0.5, t = 2, k = 10):
-    #simulate a random walk with restarts, number of steps t, probability to stop at each node after stepping is alpha
-    pi = dict()   # PPR scores: probability that the walk ends at each node
-    r = {entry_id: 1.0}  # probability that the next step move to the node. at step 0, probability is 1 to move to entry node
-
-    for _ in range(t): 
-        r_next = dict()
-        for node_id, residual in r.items(): #step to next node if probability residual
-            pi[node_id] = pi.get(node_id, 0) + alpha * residual #increase PPR score by the probability of stopping here after step
-            push_val = (1 - alpha) * residual #probability to continue walking (the remaining probability)
-            node = nodes_dict[node_id]
-            total_weight = node.degree
-            if total_weight == 0: #stop if no neighbors (won't happen in undirected graph)
-                continue
-            for nbr_id, w in node.edges.items(): 
-                r_next[nbr_id] = r_next.get(nbr_id, 0) + push_val * (w / total_weight) #probability to move to the neighbor using edge weight
-        r = r_next
-    #add remaining residual probabilities to PPR scores
-    for node_id, residual in r.items():
-        pi[node_id] = pi.get(node_id, 0) + residual
-    top_nodes = sorted(pi.items(), key=lambda x: x[1], reverse=True)[:k]
-    return dict(top_nodes)
+import pickle
+import faiss
+import json
+import numpy as np
+import pandas as pd
+from graphs.Node import Node
+from retrieval.ppr_local import shallow_ppr_local
 
 
-
-dir_path = os.getcwd()
-print("The directory of this script is:", dir_path)
+#set file paths
+import sys
+dir_path = os.path.dirname(os.path.abspath(__file__))
 root_path = os.path.dirname(dir_path)
-print("The root directory is:", root_path)
+#sys.path.append(root_path)
+
+
+#Load Data
+#Graph - Node dict
+with open(f"{root_path}/graphs/data/graphs/G5_semantically_enriched_graph.pkl", "rb") as f:
+    medical_g5 = pickle.load(f)
+#Embeddings
+hnsw = faiss.read_index(f"{root_path}/graphs/data/embedding/medical_index.faiss")
+with open(f"{root_path}/graphs/data/embedding/medical_ids.json", "r") as f:
+    medical_embedding_ids = json.load(f)
+num_vectors = hnsw.ntotal
+dimension = hnsw.d
+embeddings = np.zeros((num_vectors, dimension), dtype='float32')
+for i in range(num_vectors):
+    embeddings[i] = hnsw.reconstruct(i)
+#Entities
+with open(f"{root_path}/graphs/data/nodes/entity/medical_entities.pkl", "rb") as f:
+    medical_entities = pickle.load(f)
+medical_overview = pd.read_parquet(f"{root_path}/graphs/data/nodes/community/medical_communities_overview.parquet")
+
+def find_relevant_embeddings(query_embedding, k):
+    similarity, idx = hnsw.search(query_embedding,k)
+    return similarity[0], idx[0]
+
+def find_relevant_entities(query_entities):
+    if isinstance(query_entities, str):
+        query_set = {query_entities}
+    else:
+        query_set = set(query_entities) 
+    entity_ids = set()
+    for e in query_set:
+        e = e.upper()
+        if e in medical_entities:
+            entity_ids.add(medical_entities[e])
+        mask = medical_overview['community_overview'].str.contains(fr'\b{e}\b',case=False,na=False,regex=True) #match whole word only
+        matching_node_ids = medical_overview.loc[mask, 'node_id'].tolist()
+        entity_ids.update(matching_node_ids)
+    return entity_ids
+
+def retrieve_relevant_nodes(query_embedding, query_entities,k_embedding,k_ppr, alpha, t):
+    entry_points = set()
+    #find relevant embeddings
+    sim, idx = find_relevant_embeddings(query_embedding, k_embedding)
+    embedding_node_ids = [medical_embedding_ids[i] for i in idx]
+
+    #find relevant entities
+    entity_node_ids = find_relevant_entities(query_entities)
+
+    #combine entry node ids
+    entry_node_ids = set(embedding_node_ids).union(entity_node_ids)
+
+    #perform PPR from entry nodes to find cross nodes
+    if k_ppr:
+        ppr_search_results = shallow_ppr_local(medical_g5, entry_node_ids, alpha=alpha, t=t, k=k_ppr)
+    else:
+        ppr_search_results = shallow_ppr_local(medical_g5, entry_node_ids, alpha=alpha, t=t, k=len(entry_node_ids)*5)
+    cross_node_ids = set(ppr_search_results.keys())
+
+    #combine all relevant nodes
+    relevant_node_ids = entry_node_ids.union(cross_node_ids)
+    #content
+    content = {}
+    for node_id in relevant_node_ids:
+        node = medical_g5[node_id]
+        if node.node_type in ['N','O']: #remove non-informative nodes
+            continue
+        content[node_id] = node.content
+    return content
+
+a = Node(node_type='N', content='Test Node A')
+a.print()
+print(shallow_ppr_local({1:a}, [1], alpha=0.5, t=2, k=10))
