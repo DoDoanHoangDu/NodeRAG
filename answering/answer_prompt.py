@@ -8,7 +8,7 @@ relevant necessary knowledge to comprehensively address the user's question.
 2. Do not fabricate information. If you are unsure of the answer, just say so.
 3. Do not include details not supported by the provided evidence.
 ---Target response length and format---
-Multiple Paragraphs
+Short Paragraph
 ---Retrieved Context---
 {context}
 ---Query---
